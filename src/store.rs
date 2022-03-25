@@ -161,10 +161,10 @@ where
     }
 
     /// `get` returns the current state of the node of `val`
-    pub fn get(&self, val: T) -> Option<&(T, HashSet<u64>)> {
-        let h = &Self::get_hash_code(&val);
+    pub fn get(&self, val: T) -> (u64, Option<&(T, HashSet<u64>)>) {
+        let h = &mut Self::get_hash_code(&val);
 
-        self.get_at(h)
+        (*h, self.get_at(h))
     }
 
     // `get_at` returns the current state of the node at `index`
@@ -176,10 +176,9 @@ where
     pub fn visit(&self, val: T) -> Vec<(Option<T>, Option<T>)> {
         let mut visited: Vec<(Option<T>, Option<T>)> = vec![];
 
-        if let Some((from, links)) = self.get(val.clone()) {
-            let from_code = Self::get_hash_code(&val);
+        if let(from_code, Some((from, links))) = self.get(val.clone()) {
             links.iter().for_each(|link| {
-                let to_code = link ^ from_code;
+                let to_code = *link ^ from_code;
 
                 if let Some((to, ..)) = self.nodes.get(&to_code) {
                     visited.push((Some(from.clone()), Some(to.clone())));
@@ -576,7 +575,7 @@ fn test_store() {
 
         // Test prune()
         let prune_test = s.update_link("test-node-3", "test-node-2", "test-node-2-1").unlink("test-node-1", "test-node-2").prune();
-        assert_eq!(prune_test.get("test-node-2"), None);
+        assert_eq!(prune_test.get("test-node-2").1, None);
         println!("PruneTest:\n{}", prune_test);
     }
 
