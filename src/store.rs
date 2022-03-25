@@ -449,6 +449,28 @@ where
         }
     }
 
+    /// `update_link` adds a new link from `at` to `update` and removes a link from `at` to `current`
+    pub fn update_link(&self, at: T, current: T, update: T) -> Self {
+        let at2 = at.clone();
+
+        self.link_create_if_not_exists(at, update).unlink(at2, current)
+    }
+
+    /// `prune` removes all entries from the store that do not have any references
+    pub fn prune(&self) -> Self {
+        let next = self.nodes.clone();
+
+        let next = next.iter()
+            .filter(|(_, (_, r))| r.len() > 0)
+            .map(|(k, (v, r))| (*k, (v.clone(), r.clone())))
+            .collect();
+
+        Self {
+            nodes: next,
+            walk_unique: self.walk_unique
+        }
+    }
+
     fn get_hash_code(val: &T) -> u64 {
         let mut hash_code = std::collections::hash_map::DefaultHasher::default();
 
@@ -541,6 +563,21 @@ fn test_store() {
             Some(vec!["test-node-4"])
         );
         println!("UnlinkTest:\n{}", unlink_test);
+
+        // Test update_link()
+        let update_link_test = s.update_link("test-node-3", "test-node-2", "test-node-2-1");
+        assert_eq!(
+            update_link_test
+                .references("test-node-3")
+                .and_then(|mut f| Some(f.sort())),
+            Some(vec!["test-node-2-1", "test-node-4"].sort())
+        );
+        println!("UpdateLinkTest:\n{}", update_link_test);
+
+        // Test prune()
+        let prune_test = s.update_link("test-node-3", "test-node-2", "test-node-2-1").unlink("test-node-1", "test-node-2").prune();
+        assert_eq!(prune_test.get("test-node-2"), None);
+        println!("PruneTest:\n{}", prune_test);
     }
 
     test_store_integrity(store);
