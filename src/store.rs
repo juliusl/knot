@@ -11,6 +11,12 @@ where
     /// `visit` is a function that is called on every reference
     /// if `false` is returned the walk will not continue any further
     fn visit(&self, from: &T, to: &T) -> bool;
+
+    /// `visit_mut` is a function that is called on every reference
+    /// if `false` is returned the walk will not continue any further
+    fn visit_mut(&mut self, _: &T, _: &T) -> bool {
+        false
+    }
 }
 
 /// `Guest` just implements visitor with a noop fn
@@ -38,7 +44,7 @@ where
     T: Hash + Clone + Into<T>,
 {
     nodes: HashMap<u64, (T, HashSet<u64>)>,
-    walk_unique: bool,
+    pub walk_unique: bool,
 }
 
 impl<T> Display for Store<T>
@@ -176,7 +182,7 @@ where
     pub fn visit(&self, val: T) -> Vec<(Option<T>, Option<T>)> {
         let mut visited: Vec<(Option<T>, Option<T>)> = vec![];
 
-        if let(from_code, Some((from, links))) = self.get(val.clone()) {
+        if let (from_code, Some((from, links))) = self.get(val.clone()) {
             links.iter().for_each(|link| {
                 let to_code = *link ^ from_code;
 
@@ -207,7 +213,7 @@ where
                 match link {
                     (Some(from), Some(to)) => {
                         if self.walk_unique
-                            && visited.contains(&(Some(to.clone()), Some(from.clone())))
+                            && visited.contains(&(Some(from.clone()), Some(to.clone())))
                         {
                             return;
                         }
@@ -216,6 +222,45 @@ where
                             if let Some(v) = visitor {
                                 if v.visit(from, to) {
                                     self.walk::<F>(to.clone(), seen, visited, visitor)
+                                } else {
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    _ => unreachable!("visit only returns links"),
+                };
+            });
+        }
+    }
+
+    /// Walks all paths starting from val
+    pub fn walk_mut<F>(
+        &self,
+        val: T,
+        seen: &mut HashSet<T>,
+        visited: &mut HashSet<(Option<T>, Option<T>)>,
+        mut visitor: Option<&mut F>,
+    ) where
+        T: Eq,
+        F: Visitor<T>,
+    {
+        let start = val.clone().into();
+
+        if seen.insert(start) {
+            self.visit(val).iter().for_each(|link| {
+                match link {
+                    (Some(from), Some(to)) => {
+                        if self.walk_unique
+                            && visited.contains(&(Some(from.clone()), Some(to.clone())))
+                        {
+                            return;
+                        }
+
+                        if visited.insert((Some(from.clone()), Some(to.clone()))) {
+                            if let Some(v) = visitor.as_deref_mut() {
+                                if v.visit_mut(from, to) {
+                                    self.walk_mut::<F>(to.clone(), seen, visited, Some(v))
                                 } else {
                                     return;
                                 }
@@ -362,6 +407,24 @@ where
         (seen, visited)
     }
 
+    pub fn new_walk_mut<E, F>(
+        &self,
+        from: E,
+        visitor: Option<&mut F>,
+    ) -> (HashSet<T>, HashSet<(Option<T>, Option<T>)>)
+    where
+        E: Into<T>,
+        T: Eq,
+        F: Visitor<T>,
+    {
+        let mut seen: HashSet<T> = HashSet::new();
+        let mut visited: HashSet<(Option<T>, Option<T>)> = HashSet::new();
+
+        self.walk_mut(from.into(), &mut seen, &mut visited, visitor);
+
+        (seen, visited)
+    }
+
     /// `branch` iterates through all the references of `at` and creates a link between those references and `with`
     pub fn branch<A>(&self, at: A, with: A) -> Self
     where
@@ -452,21 +515,23 @@ where
     pub fn update_link(&self, at: T, current: T, update: T) -> Self {
         let at2 = at.clone();
 
-        self.link_create_if_not_exists(at, update).unlink(at2, current)
+        self.link_create_if_not_exists(at, update)
+            .unlink(at2, current)
     }
 
     /// `prune` removes all entries from the store that do not have any references
     pub fn prune(&self) -> Self {
         let next = self.nodes.clone();
 
-        let next = next.iter()
+        let next = next
+            .iter()
             .filter(|(_, (_, r))| r.len() > 0)
             .map(|(k, (v, r))| (*k, (v.clone(), r.clone())))
             .collect();
 
         Self {
             nodes: next,
-            walk_unique: self.walk_unique
+            walk_unique: self.walk_unique,
         }
     }
 
@@ -574,7 +639,10 @@ fn test_store() {
         println!("UpdateLinkTest:\n{}", update_link_test);
 
         // Test prune()
-        let prune_test = s.update_link("test-node-3", "test-node-2", "test-node-2-1").unlink("test-node-1", "test-node-2").prune();
+        let prune_test = s
+            .update_link("test-node-3", "test-node-2", "test-node-2-1")
+            .unlink("test-node-1", "test-node-2")
+            .prune();
         assert_eq!(prune_test.get("test-node-2").1, None);
         println!("PruneTest:\n{}", prune_test);
     }
@@ -608,7 +676,7 @@ fn test_edge() {
     )));
 
     // Test walk_unique setting, this changes the behavior of walking and allows back-tracking
-    // for example say there is some path A -> B, setting this field to false means that during a walk 
+    // for example say there is some path A -> B, setting this field to false means that during a walk
     // A -> B and B -> A will be visited
     indexer.walk_unique = false;
 
