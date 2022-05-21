@@ -4,6 +4,8 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use serde_derive::{Serialize, Deserialize};
+
 pub trait Visitor<T>
 where
     T: Hash + Clone + Into<T>,
@@ -38,7 +40,7 @@ impl Default for Guest {
 }
 
 /// `Store` is a general-purpose graph of nodes that store a value of `T` and all links to to `T`
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Store<T>
 where
     T: Hash + Clone + Into<T>,
