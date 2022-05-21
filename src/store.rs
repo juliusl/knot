@@ -105,6 +105,11 @@ impl<T> Store<T>
 where
     T: Hash + Clone,
 {
+    /// `nodes` returns all of the nodes in the store
+    pub fn nodes(&self) -> Vec<&T> {
+        self.nodes.iter().map(|(_, (n, _))| n).collect()
+    }
+
     /// `node` adds a node to the underlying graph for `val`
     /// If val is already a node, then no changes are made
     pub fn node(&self, val: T) -> Self {
