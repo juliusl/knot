@@ -4,7 +4,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 pub trait Visitor<T>
 where
@@ -391,6 +391,24 @@ where
         let mut visited: BTreeSet<(Option<T>, Option<T>)> = BTreeSet::new();
 
         self.walk_ordered(from.into(), &mut seen, &mut visited, visitor);
+
+        (seen, visited)
+    }
+    /// `new_walk_ordered_now` walks the graph starting from the top node
+    pub fn new_walk_ordered_now<V>(
+        &self,
+        visitor: Option<&V>,
+    ) -> (BTreeSet<T>, BTreeSet<(Option<T>, Option<T>)>)
+    where
+        T: Ord,
+        V: Visitor<T>,
+    {
+        let mut seen: BTreeSet<T> = BTreeSet::new();
+        let mut visited: BTreeSet<(Option<T>, Option<T>)> = BTreeSet::new();
+
+        if let Some((from, _)) = self.nodes.get(&0) {
+            self.walk_ordered(from.clone(), &mut seen, &mut visited, visitor);
+        }
 
         (seen, visited)
     }
