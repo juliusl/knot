@@ -40,7 +40,7 @@ impl Default for Guest {
 }
 
 /// `Store` is a general-purpose graph of nodes that store a value of `T` and all links to to `T`
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Store<T>
 where
     T: Hash + Clone + Into<T>,
@@ -406,7 +406,7 @@ where
         let mut seen: BTreeSet<T> = BTreeSet::new();
         let mut visited: BTreeSet<(Option<T>, Option<T>)> = BTreeSet::new();
 
-        if let Some((from, _)) = self.nodes.get(&0) {
+        for (_, (from, _)) in self.nodes.iter().min_by(|a, b| a.0.cmp(b.0)) {
             self.walk_ordered(from.clone(), &mut seen, &mut visited, visitor);
         }
 
